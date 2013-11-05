@@ -46,6 +46,8 @@ class band:
         else:
             self._bandnum = band_id[wband[0]]
 
+        self._minfreq = u.Quantity(band_lowfreq[wband[0]], u.GHz)
+        self._maxfreq = u.Quantity(band_hifreq[wband[0]], u.GHz)
         self._loadtsys(self._bandnum)
 
     def _loadtsys(self, bandnum):
@@ -66,8 +68,8 @@ class band:
         dat = np.loadtxt(tsys_filename)
         self._tsys_freq = dat[:, 0]
         self._tsys_tsys = dat[:, 1]
-        self._minfreq = self._tsys_freq.min()
-        self._maxfreq = self._tsys_freq.max()
+        self._min_tsys_freq = self._tsys_freq.min()
+        self._max_tsys_freq = self._tsys_freq.max()
         self._tsys_interp = interp1d(self._tsys_freq, self._tsys_tsys,
                                      kind='linear')
 
@@ -75,6 +77,14 @@ class band:
     def bandnum(self):
         """ Gets ALMA band number"""
         return self._bandnum
+
+    @property
+    def minfreq(self):
+        return self._minfreq
+
+    @property
+    def maxfreq(self):
+        return self._maxfreq
 
     def tsys(self, freq):
         """ Get system temperature at specified frequency"""
@@ -102,7 +112,7 @@ class band:
 
     def sens(self, freq, tint = u.Quantity(1, u.s), 
              deltanu = u.Quantity(31.25, u.MHz), 
-             n=34, npol=2) :
+             nant=34, npol=2) :
         """Returns sensitivity in mJy per deltanu (in MHz) with tint
         specified in seconds at frequency freq (in GHz) for n 12m antennae"""
 
@@ -111,13 +121,13 @@ class band:
     
         # Check bounds
         if isinstance(freq, u.Quantity):
-            minf = freq.min().value
-            maxf = freq.max().value
-        elif isinstance(freq, np.ndarray):
             minf = freq.min()
             maxf = freq.max()
+        elif isinstance(freq, np.ndarray):
+            minf = u.Quantity(freq.min(), u.GHz)
+            maxf = u.Quantity(freq.max(), u.GHz)
         else:
-            minf = maxf = float(freq)
+            minf = maxf = u.Quantity(float(freq), u.GHz)
 
         if minf < self._minfreq:
             raise ValueError("Frequency out of bounds (low) for band")
@@ -145,7 +155,7 @@ class band:
         
         return u.Quantity(1e26 * 2 * k_B * Tsys /\
                           (eta_q * eta_c * aeff * 
-                           math.sqrt(n*(n-1) * npol * dnu_mhz * tint_s)),
+                           math.sqrt(nant*(nant-1) * npol * dnu_mhz * tint_s)),
                            u.mJy)
 
     def __repr__(self):
