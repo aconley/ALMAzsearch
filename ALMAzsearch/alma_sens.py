@@ -38,8 +38,8 @@ class band:
         else:
             freq_ghz = float(freq) # Assume GHz
         
-        wband = numpy.nonzero((freq_ghz >= band_lowfreq) & 
-                              (freq_ghz <= band_hifreq))[0]
+        wband = np.nonzero((freq_ghz >= band_lowfreq) & 
+                           (freq_ghz <= band_hifreq))[0]
         if len(wband) == 0:
             raise ValueError("Specified frequency is not in any known "\
                              "ALMA band")
@@ -69,7 +69,7 @@ class band:
         self._minfreq = self._tsys_freq.min()
         self._maxfreq = self._tsys_freq.max()
         self._tsys_interp = interp1d(self._tsys_freq, self._tsys_tsys,
-                                     type='cubic')
+                                     kind='linear')
 
     @property
     def bandnum(self):
@@ -84,19 +84,21 @@ class band:
         else:
             return u.Quantity(self._tsys_interp(freq), u.K)
         
-    def aeff(self,freq) :
+    def aeff(self, freq) :
         """ Get effective area of 12m antennae at specified frequency"""
 
-        import math
-        prefac = -16 * math.pi**2
+        # Note we don't check that we are within band
+        prefac = -16 * np.pi**2
         #Surface rms (25 um) in GHz equivalent
         surffreq = 299792458.0 / 25e3
         #Effective area of 12ms
         if isinstance(freq, u.Quantity):
             f = freq.to(u.GHz).value
-            return u.Quantity(113.1 * 0.72 *\
-                              numpy.exp(prefac*(numpy.array(f)/surffreq)**2),
-                              u.m**2)
+        else:
+            f = freq
+
+        return u.Quantity(113.1 * 0.72 *\
+                          np.exp(prefac*(f / surffreq)**2), u.m**2)
 
     def sens(self, freq, tint = u.Quantity(1, u.s), 
              deltanu = u.Quantity(31.25, u.MHz), 
@@ -105,6 +107,23 @@ class band:
         specified in seconds at frequency freq (in GHz) for n 12m antennae"""
 
         import astropy.constants as const
+        import math
+    
+        # Check bounds
+        if isinstance(freq, u.Quantity):
+            minf = freq.min().value
+            maxf = freq.max().value
+        elif isinstance(freq, np.ndarray):
+            minf = freq.min()
+            maxf = freq.max()
+        else:
+            minf = maxf = float(freq)
+
+        if minf < self._minfreq:
+            raise ValueError("Frequency out of bounds (low) for band")
+        if maxf > self._maxfreq:
+            raise ValueError("Frequency out of bounds (high) for band")
+
         k_B = u.Quantity(const.k_B.si).value # J / K
         #Effective area of 12ms
         aeff = self.aeff(freq).value # m^2
@@ -124,7 +143,10 @@ class band:
         else:
             tint_s = tint
         
-        return u.Quantity(1e23 * 2 * k_B * Tsys /\
+        return u.Quantity(1e26 * 2 * k_B * Tsys /\
                           (eta_q * eta_c * aeff * 
-                           math.sqrt(n*(n-1) * npol * deltanu_mhz * tint_s)),
+                           math.sqrt(n*(n-1) * npol * dnu_mhz * tint_s)),
                            u.mJy)
+
+    def __repr__(self):
+        return "ALMA band {0:d}".format(self.bandnum)

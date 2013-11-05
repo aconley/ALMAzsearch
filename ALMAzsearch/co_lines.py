@@ -16,4 +16,4 @@ linefreq_raw = { '12CO(1-0)' : 115.271, '12CO(2-1)' : 230.538,
                  '12CO(19-18)' : 2185.13470, '12CO(20-19)' : 2299.56986,
                  '[CI](1-0)' : 492.16065, '[CI](2-1)': 809.34197 }
 
-linefreq = OrderedDict(sorted(ob.items(), key=lambda x: x[1]))
+linefreq = OrderedDict(sorted(linefreq_raw.items(), key=lambda x: x[1]))
