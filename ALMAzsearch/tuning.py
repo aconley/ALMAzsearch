@@ -21,8 +21,15 @@ class scan_tuning:
     1 would be quite silly).
     """
 
-    def __init__(self, lofreq, ntune=5):
+    def __init__(self, lofreq, ntune=5, nantennae=34, npol=2):
         self.band = band(lofreq)
+        self._nantennae = nantennae
+        self._npol = npol
+
+        if self._nantennae <= 0:
+            raise ValueError("Invalid (non-positive) number of antennae")
+        if not self._npol in {1, 2}:
+            raise ValueError("Invalid number of polarizations")
 
         if isinstance(lofreq, u.Quantity):
             self.lowfreq = lofreq.to(u.GHz)
@@ -63,6 +70,14 @@ class scan_tuning:
     def bandnum(self):
         return self.band.bandnum
 
+    @property
+    def nantennae(self):
+        return self._nantennae
+
+    @property
+    def npol(self):
+        return self._npol
+
     def freq_coverage(self, idx):
         """ Returns the coverage for a scan index (range 0 to ntune-1)
         as min 1, max 1, min 2, max 2.  So, a frequency that is either
@@ -92,9 +107,28 @@ class scan_tuning:
 
         if isinstance(freq, u.Quantity):
             if not freq.isscalar:
-                raise ValueError("Only scalar frequencies supported")
-            n1 = np.count_nonzero((freq >= self._min1) & (freq <= self._max1))
-            n2 = np.count_nonzero((freq >= self._min2) & (freq <= self._max2))
+                n1 = [np.count_nonzero((f >= self._min1) & (f <= self._max1))
+                  for f in freq]
+                n2 = [np.count_nonzero((f >= self._min2) & (f <= self._max2))
+                  for f in freq]
+                n1 = np.array(n1)
+                n2 = np.array(n2)
+            else:
+                n1 = np.count_nonzero((freq >= self._min1) & 
+                                      (freq <= self._max1))
+                n2 = np.count_nonzero((freq >= self._min2) & 
+                                      (freq <= self._max2))
+        elif isinstance(freq, np.ndarray):
+            min1, max1 = self._min1.value, self._max1.value
+            min2, max2 = self._min2.value, self._max2.value
+            if len(freq.shape) > 0:
+                n1 = [np.count_nonzero((f >= min1) & (f <= max1)) for f in freq]
+                n2 = [np.count_nonzero((f >= min2) & (f <= max2)) for f in freq]
+                n1 = np.array(n1)
+                n2 = np.array(n2)
+            else:
+                n1 = np.count_nonzero((freq >= min1) & (freq <= max1))
+                n2 = np.count_nonzero((freq >= min2) & (freq <= max2))
         else:
             f = u.Quantity(float(freq), u.GHz)
             n1 = np.count_nonzero((f >= self._min1) & (f <= self._max1))
@@ -103,8 +137,7 @@ class scan_tuning:
         return n1 + n2
 
     def sens(self, freq, base_tint = u.Quantity(1, u.s),
-             deltanu = u.Quantity(31.25, u.MHz),
-             nant=34, npol=2) :
+             deltanu = u.Quantity(31.25, u.MHz)):
         """ Get the sensitivity for a given frequency in the specified
         bandwidth (deltanu) with the base integration time (for one tuning)
         base_tint.  Returns inf if the frequency is not covered by this
@@ -129,6 +162,9 @@ class scan_tuning:
             return u.Quantity(np.inf, u.mJy)
 
         tint = ncov * t
-        return self.band.sens(f, tint=t, deltanu=deltanu, nant=nant,
-                              npol=npol)
+        return self.band.sens(f, tint=t, deltanu=deltanu, nant=self._nantennae,
+                              npol=self._npol)
                 
+    def __repr__(self):
+        rstr = "ALMA band {:d} frequency scan with min/max frequency: {:s}/{:s}"
+        return rstr.format(self.bandnum, self._min1.min(), self.max2.max())
