@@ -21,7 +21,7 @@ Then you chose your line templates, and set up and execute 2-line search
      
         line_templates = ["Eyelash", "FLS3", "HLSW01"]
 	twoline = ALMAzsearch.twoline(line_templates, ciratio=1.5)
-	z = np.arange(3.5, 7.0, 500) # Set up redshift range
+	z = np.arange(3.5, 7.0, 500)
 	n3, sn3 = twoline.sn(tuning3, z, lir=lir, applyciratio=True)
 
 Now n3 shows the number of lines detected at each redshift (a maximum of 2),
