@@ -24,11 +24,13 @@ band_hifreq = np.array([116.0, 163.0, 275.0, 373.0, 500.0, 720.0])
 
 class band:
     def __init__(self, freq):
-        """ Object representing a single ALMA band.
+        """ Object representing a single ALMA band.  Currently,
+        only bands 3, 4, and 6 are supported.
 
         freq : float or astropy.units.Quantity
         ---------------------------------------
-          Representative frequency, in GHz.  Used to select the band
+          Representative frequency.  Used to select the band.
+          Assumed in GHz if not a Quantity.
         """
 
         if isinstance(freq, u.Quantity):
@@ -80,10 +82,12 @@ class band:
 
     @property
     def minfreq(self):
+        """ Minimum frequency of band"""
         return self._minfreq
 
     @property
     def maxfreq(self):
+        """ Maximum frequency of band"""
         return self._maxfreq
 
     def tsys(self, freq):
@@ -111,10 +115,37 @@ class band:
                           np.exp(prefac*(f / surffreq)**2), u.m**2)
 
     def sens(self, freq, tint = u.Quantity(1, u.s), 
-             deltanu = u.Quantity(31.25, u.MHz), 
+             deltanu=u.Quantity(31.25, u.MHz), 
              nant=34, npol=2) :
-        """Returns sensitivity in mJy per deltanu (in MHz) with tint
-        specified in seconds at frequency freq (in GHz) for n 12m antennae"""
+        """ Computes 12m array sensitivity.
+        
+        Parameters
+        ----------
+        freq : astropy.units.Quantity
+          Desired frequency for sensitivity.
+
+        tint : astropy.units.Quantity
+          Integration time.
+
+        deltanu : astropy.units.Quantity
+          Bandwidth over which sensitivity is defined.
+
+        nant : int
+          Number of 12m antennae
+
+        npol : int
+          Number of polarizations desired (so 2 means total power).
+
+        Returns
+        -------
+        sens : astropy.units.Quantity
+          Sensitivity. 
+
+        Notes
+        -----
+          These compuations assume the OT default quantile for the
+        band for a source at zenith.
+        """
 
         import astropy.constants as const
         import math

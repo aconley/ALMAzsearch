@@ -1,3 +1,4 @@
+
 # Astropy unit equivalencies
 
 import astropy.units as u
@@ -13,7 +14,7 @@ def radio_units(freq):
             raise ValueError("Freq must be scalar")
         freq_ghz = freq.to(u.GHz).value
     else:
-        freq_ghz = float(freq)
+        freq_ghz = freq
         
     return [((u.Jy * u.km / u.s), (u.W / u.m**2), 
              lambda x: x * freq_ghz / 299792458e14,

@@ -9,6 +9,19 @@ from .co_lines import linefreq
 __all__ = ["line_template"]
 
 class line_template(object) :
+    """ Object for predicting observed line strengths
+    
+    Parameters
+    ----------
+    name : str
+      Name of the template.  The currently supported values are
+      Arp220, Eyelash, HLSW01, FLS3, GN20, and ID141
+
+    ciratio : float
+      S/N bonus factor for [CI] lines -- see twoline documentation.
+    """
+
+
     def __init__(self, name, ciratio=1.0) :
         # We store which lines are observed (or predicted) as
         # well as L_IR and the observed line strengths (both
@@ -60,21 +73,22 @@ class line_template(object) :
         elif name == "HLSW01" :
             self.source = "K.S. Scott et al. (2011)"
             self.z = 2.9575
-            self.lir = u.Quantity(1.43e13, u.solLum)
+            self.lir = u.Quantity(1.43e13, u.solLum) # Magnification corrected
             self.dl = WMAP9.luminosity_distance(self.z)
 
-            #2-1,4-3,6-5,8-7 are model based
-            #[CI](1-0) assumes 30% of 4-3
+            # 2-1,4-3,6-5,8-7 are model based, [CI](1-0) assumes 30% of 4-3
+            # and [CI](2-1) = 5/3 [CI](1-0). Values are magnification corrected
             self.linename = ['12CO(1-0)','12CO(2-1)','12CO(3-2)',
                              '12CO(4-3)','12CO(5-4)','12CO(6-5)',
                              '12CO(7-6)','12CO(8-7)','12CO(9-8)',
-                             '12CO(10-9)','[CI](1-0)']
+                             '12CO(10-9)','[CI](1-0)', '[CI](2-1)']
             self.linei0 = u.Quantity([1e-22,   1e-21,    2.6e-21,
                                       0.6e-20, 1.05e-20, 1.5e-20,
                                       2.2e-20, 1.7e-20,  1e-20, 
-                                      1.3e-20, 0.2e-20], u.W / u.m**2)
+                                      1.3e-20, 0.2e-20, 0.33e-20], 
+                                     u.W / u.m**2)
             self.lineratio = np.ones_like(self.linei0.value)
-            self.lineratio[-1:] = ciratio
+            self.lineratio[-2:] = ciratio
 
         elif name == "ID141" :
             #Observer frame SED params; note none of the below are
@@ -105,17 +119,18 @@ class line_template(object) :
             self.lir = u.Quantity(2.9e13, u.solLum)
             self.dl = WMAP9.luminosity_distance(self.z)
 
-            self.linename = ['12CO(1-0)','12CO(2-1)','12CO(3-2)',
-                             '12CO(4-3)','12CO(5-4)','12CO(6-5)',
-                             '12CO(7-6)','12CO(8-7)','12CO(9-8)',
-                             '[CI](1-0)']
-            #[CI] (1-0) is assumed to be 1/3 of 12CO(4-3)
+            self.linename = ['12CO(1-0)', '12CO(2-1)', '12CO(3-2)',
+                             '12CO(4-3)', '12CO(5-4)', '12CO(6-5)',
+                             '12CO(7-6)', '12CO(8-7)', '12CO(9-8)',
+                             '[CI](1-0)', '[CI](2-1)']
+            # [CI] (1-0) is assumed to be 1/3 of 12CO(4-3), and
+            # [CI](2-1) = 5/3 [CI](1-0)
             self.linei0   = np.array([1.599e-22, 9.746e-22, 2.4e-21,
                                       4.57e-21,  8.374e-21, 8.22e-21,
                                       5.33e-21,  2.13e-21,  2.74e-21,
-                                      1.52e-21])
+                                      1.52e-21, 2.53e-21])
             self.lineratio = np.ones_like(self.linei0.value)
-            self.lineratio[-1:] = ciratio
+            self.lineratio[-2:] = ciratio
         elif name == "FLS3" :
             mu = 1.25 # Mag limit
             self.source = "Riechers et al. (2013)"
@@ -124,17 +139,19 @@ class line_template(object) :
             self.dl = WMAP9.luminosity_distance(self.z)
 
             #First 6 lines are measured, rest are model (Bouthwell ratios,
-            # or Arp220 beyond those), and a [CI](1-0) = 1/3 12CO(4-3) assump
+            # or Arp220 beyond those), and [CI](1-0) = 1/3 12CO(4-3) plus
+            # [CI](2-1) = 5/3 [CI](1-0) assumptions
             self.linename = ['12CO(1-0)','12CO(2-1)','12CO(6-5)',
                              '12CO(7-6)','12CO(9-8)','12CO(10-9)',
                              '12CO(3-2)','12CO(4-3)','12CO(5-4)',
-                             '12CO(8-7)','[CI](1-0)']
+                             '12CO(8-7)','[CI](1-0)','[CI](2-1)']
             self.linei0   = u.Quantity([3.88e-23,  3.303e-22, 8.617e-21,
                                         1.064e-20, 1.305e-20, 2.049e-20,
                                         4.309e-21, 5.108e-21, 7.600e-21,
-                                        1.143e-20, 1.703e-21], u.W / u.m**2)/mu
+                                        1.143e-20, 1.703e-21, 2.838e-21], 
+                                       u.W / u.m**2)/mu
             self.lineratio = np.ones_like(self.linei0.value)
-            self.lineratio[-1:] = ciratio
+            self.lineratio[-2:] = ciratio
 
         else :
             raise KeyError("Unknown source %s" % name)
@@ -153,9 +170,31 @@ class line_template(object) :
         """Returns observed line frequency for all lines"""
         return self.linefreq / (1 + redshift)
 
-    def linestrength(self, lir, redshift, lirslope=0.9, applyciratio=True) :
-        """Predicts all available line strengths at (scalar) redshift 
-        based on template and L_IR (in L sun if not specified)."""
+    def linestrength(self, lir, redshift, lirslope=0.9):
+        """ Predict line strengths
+        
+        Parameters
+        ----------
+        lir : astropy.units.Quantity
+          L_IR (8-1000um)
+
+        redshift : float
+          Redshift to evaluate line strengths at.
+
+        lirslope : float
+          Log slope of L_IR, L_line relation, such that 
+          L_line \propto L_IR^lirslope
+
+        Returns
+        -------
+          A tuple of line name, observer frame frequency, and
+          line strength.  The first is a list of strings, the others
+          are astropy.units.Quantity objects.
+
+        Notes
+        -----
+          The ciratio S/N bonus is not applied here.
+        """
 
         # Correction for luminosity distance
         dl_factor = (self.dl / WMAP9.luminosity_distance(redshift)).value**2
@@ -168,10 +207,8 @@ class line_template(object) :
             normfac = (lir / self.lir.value)**lirslope
             
         pred = dl_factor * normfac * self.linei0
-        if applyciratio : 
-            pred *= self.lineratio
 
-        return (self.obs_line_freq(redshift), pred)
+        return (self.linename, self.obs_line_freq(redshift), pred)
 
     def __repr__(self):
         rpr = "Line strength template for {:s} from {:s}"

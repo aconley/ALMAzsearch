@@ -10,21 +10,44 @@ __all__ = ["scan_tuning"]
 # Note that band 6 has a funny split.
 alma_split = {3: 8, 4: 8, 6: 12, 7: 8, 8: 8}
 
+
+def overlap(x1, x2, y1, y2):
+    """ Tests if [x1, x2] and [y1, y2] overlap, assuming
+    x1 < x2, y1 < y2"""
+    return (x1 <= y2) and (y1 <= x2)
+
+###################################
+
 class scan_tuning:
     """ Holds information about a single ALMA frequency scan tuning.
 
-    lofreq is the minimum frequency covered.  Note that this is not
+    Parameters
+    ----------
+    lofreq : astropy.units.Quantity
+      The minimum frequency covered.  Note that this is not
       the SPW1 value in the OT (which is the center of the lowest tuning,
       so 1.875/2 GHz higher.
 
-    ntune is the number of tunings.  Values of 1-5 are supported (although
-    1 would be quite silly).
+    base_tint : astropy.units.Quantity
+      The integration time for a single tuning
+
+    ntune : int
+      The number of tunings.  Values of 1-5 are supported (since that's
+      what the Cycle 2 ALMA OT allows).
     """
 
-    def __init__(self, lofreq, ntune=5, nantennae=34, npol=2):
-        self.band = band(lofreq)
+    def __init__(self, lofreq, base_tint, ntune=5, nantennae=34, npol=2):
+
+        self._band = band(lofreq)
         self._nantennae = nantennae
         self._npol = npol
+
+        if isinstance(base_tint, u.Quantity):
+            if not base_tint.isscalar:
+                raise ValueError("base_tint must be scalar")
+            self._base_tint = base_tint.to(u.s)
+        else:
+            self._base_tint = u.Quantity(base_tint, u.s)
 
         if self._nantennae <= 0:
             raise ValueError("Invalid (non-positive) number of antennae")
@@ -36,8 +59,8 @@ class scan_tuning:
         else:
             self.lowfreq = u.Quantity(lofreq, u.GHz)
 
-        if not self.band.bandnum in alma_split:
-            errstr = "Band {0:d} not supported".format(self.band.bandnum)
+        if not self._band.bandnum in alma_split:
+            errstr = "Band {0:d} not supported".format(self._band.bandnum)
             raise ValueError(errstr)
 
         # Make an array for each tuning giving the ranges covered
@@ -57,9 +80,12 @@ class scan_tuning:
                      u.Quantity(alma_split[self.bandnum] + 4, u.GHz)
         self._max2 = self._min2 + 2 * u.Quantity(bwidth, u.GHz)
 
+        self._minfreq = self._min1.min()
+        self._maxfreq = self._max2.max()
+
         # Make sure we are within range
         # Low edge already tested by band constructor
-        if self._max2.max() > self.band.maxfreq:
+        if self._max2.max() > self._band.maxfreq:
             raise ValueError("Tuning extends beyond band boundary high")
 
     @property
@@ -68,7 +94,7 @@ class scan_tuning:
         
     @property
     def bandnum(self):
-        return self.band.bandnum
+        return self._band.bandnum
 
     @property
     def nantennae(self):
@@ -77,6 +103,20 @@ class scan_tuning:
     @property
     def npol(self):
         return self._npol
+
+    @property
+    def base_tint(self):
+        return self._base_tint
+
+    @base_tint.setter
+    def base_tint(self, value):
+        if isinstance(value, u.Quantity):
+            if not value.isscalar:
+                raise ValueError("Integration time must be scalar")
+            self._base_tint = value.to(u.s)
+        else:
+            self._base_tint = u.Quantity(value, u.s)
+        
 
     def freq_coverage(self, idx):
         """ Returns the coverage for a scan index (range 0 to ntune-1)
@@ -88,22 +128,73 @@ class scan_tuning:
 
     @property
     def min1(self):
+        """ Minimum frequency of first sideband for each tuning"""
         return self._min1.copy()
 
     @property
     def max1(self):
+        """ Maximum frequency of first sideband for each tuning"""
         return self._max1.copy()
 
     @property
     def min2(self):
+        """ Minimum frequency of second sideband for each tuning"""
         return self._min2.copy()
 
     @property
     def max2(self):
+        """ Maximum frequency of second sideband for each tuning"""
         return self._max2.copy()
+        
+    @property
+    def minfreq(self):
+        """ Minimum frequency covered; note coverage may not be contiguous"""
+        return self._minfreq
+
+    @property
+    def maxfreq(self):
+        """ Maximum frequency covered; note coverage may not be contiguous"""
+        return self._maxfreq
+        
+    def overlap(self, tuning):
+        """ Do any of the frequencies in this tuning overlap with those
+        of another tuning?"""
+
+        # Quick test for extremities
+        if not overlap(self.minfreq, self.maxfreq, 
+                       tuning.minfreq, tuning.maxfreq):
+            return False
+
+        # They may overlap -- we have to do the detailed comparison
+        # of each individual tunings
+        for idx1 in range(self._ntune):
+            for idx2 in range(tuning._ntune):
+                if overlap(self._min1[idx1], self._max1[idx1],
+                           tuning._min1[idx2], tuning._max1[idx2]):
+                    return True
+                if overlap(self._min1[idx1], self._max1[idx1],
+                           tuning._min2[idx2], tuning._max2[idx2]):
+                    return True
+                if overlap(self._min2[idx1], self._max2[idx1],
+                           tuning._min1[idx2], tuning._max1[idx2]):
+                    return True
+                if overlap(self._min2[idx1], self._max2[idx1],
+                           tuning._min2[idx2], tuning._max2[idx2]):
+                    return True
+        return False
 
     def ncover(self, freq):
-        """ Return the number of tunings covering a specified frequency"""
+        """ Find the number of tunings covering a specified frequency.
+
+        Parameters
+        ----------
+        freq : astropy.units.Quantity
+          Frequency.
+
+        Returns
+        -------
+          The number of tunings covering the specified frequencies.
+        """
 
         if isinstance(freq, u.Quantity):
             if not freq.isscalar:
@@ -136,11 +227,13 @@ class scan_tuning:
         
         return n1 + n2
 
-    def sens(self, freq, base_tint = u.Quantity(1, u.s),
-             deltanu = u.Quantity(31.25, u.MHz)):
+    def integration_time(self, freq):
+        """ Return integration time at frequency"""
+        return self._base_tint * self.ncover(freq)
+
+    def sens(self, freq, deltanu=u.Quantity(31.25, u.MHz)):
         """ Get the sensitivity for a given frequency in the specified
-        bandwidth (deltanu) with the base integration time (for one tuning)
-        base_tint.  Returns inf if the frequency is not covered by this
+        bandwidth (deltanu). Returns inf if the frequency is not covered by this
         setup."""
         
         if isinstance(freq, u.Quantity):
@@ -150,21 +243,17 @@ class scan_tuning:
         else:
             f = u.Quantity(float(freq), u.GHz)
 
-        if isinstance(base_tint, u.Quantity):
-            if not base_tint.isscalar:
-                raise ValueError("Only scalar integration times supported")
-            t = base_tint
-        else:
-            t = u.Quantity(float(base_tint), u.s)
-            
         ncov = self.ncover(f)
         if ncov == 0:
             return u.Quantity(np.inf, u.mJy)
 
-        tint = ncov * t
-        return self.band.sens(f, tint=t, deltanu=deltanu, nant=self._nantennae,
-                              npol=self._npol)
+        tint = ncov * self._base_tint
+        return self._band.sens(f, tint=tint, deltanu=deltanu, 
+                               nant=self._nantennae,
+                               npol=self._npol)
                 
     def __repr__(self):
-        rstr = "ALMA band {:d} frequency scan with min/max frequency: {:s}/{:s}"
-        return rstr.format(self.bandnum, self._min1.min(), self.max2.max())
+        rstr = "ALMA band {:d} frequency scan with {:d} tunings, "\
+               "min/max frequency: {:s}/{:s} and base integration: {:s}"
+        return rstr.format(self.bandnum, self._ntune, self._minfreq, 
+                           self.maxfreq, self.base_tint)
