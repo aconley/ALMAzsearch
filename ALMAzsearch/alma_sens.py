@@ -11,9 +11,9 @@ Band   Freq Range     Octile
 3      84-116         7th (5.186mm PWV)
 4      125-163        6th (2.748mm PWV)
 6      211-275        4th (1.262mm PWV)
-7      275-373        4th (1.262mm PWV)
-8      385-500        2nd (0.648mm PWV)
-9      602-720        1st (0.472mm PWV)
+7      275-373        3rd (0.913mm PWV)
+
+The other bands are not supported.
 """
 
 __all__ = ["band"]
@@ -25,7 +25,7 @@ band_hifreq = np.array([116.0, 163.0, 275.0, 373.0, 500.0, 720.0])
 class band:
     def __init__(self, freq):
         """ Object representing a single ALMA band.  Currently,
-        only bands 3, 4, and 6 are supported.
+        only ALMA bands 3, 4, 6, and 7 are supported.
 
         freq : float or astropy.units.Quantity
         ---------------------------------------

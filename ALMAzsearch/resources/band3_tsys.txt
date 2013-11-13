@@ -1,4 +1,4 @@
-#taken from the ALMA OT forcing 5.2mm PWV
+#taken from the ALMA OT forcing 5.2mm PWV at DEC = 0
 84	79.534
 84.5	79.414
 85	79.315

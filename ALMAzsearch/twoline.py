@@ -24,17 +24,35 @@ class twoline(object):
       account for the fact that they occur in a fixed relation
       with nearby 12CO lines, and hence a lower S/N is acceptable when
       searching for them.
+
+    Td : astropy.units.Quantity
+      Dust temperature (rest frame) for observed flux normalization.
+
+    beta : float
+      Dust beta for observed flux normalization.
+
+    lambda0 : astropy.units.Quantity
+      Rest frame wavelength where dust becomes optically thick for
+      flux normalization.
+
+    alpha : float
+      Wein-side power-law slope for flux normalization.
     """
 
-    def __init__(self, template_names, ciratio=1.0):
+    def __init__(self, template_names, ciratio=1.0, Td=u.Quantity(55, u.K), 
+                 beta=1.8, lambda0=u.Quantity(200.0, u.um), alpha=4):
         if isinstance(template_names, str):
             # Just one
             self._ntemplates = 1
-            self._templates = [line_template(template_names, ciratio=ciratio)]
+            self._templates = [line_template(template_names, ciratio=ciratio,
+                                             Td=Td, beta=beta, lambda0=lambda0,
+                                             alpha=alpha)]
             self._template_names = [template_names]
         else:
             self._ntemplates = len(template_names)
-            self._templates = [line_template(nm, ciratio=ciratio) for
+            self._templates = [line_template(nm, ciratio=ciratio, Td=Td, 
+                                             beta=beta, lambda0=lambda0,
+                                             alpha=alpha) for
                                nm in template_names]
             self._template_names = template_names
 
@@ -65,9 +83,9 @@ class twoline(object):
                          for fq, lw in zip(wfreq, linewidths)])
         return (wi0 / sens).value
                 
-    def sn(self, tunings, z, lir=u.Quantity(1e13, u.solLum),
+    def sn(self, tunings, z, norm=u.Quantity(3e13, u.solLum),
            linewidth=u.Quantity(500, u.km / u.s), lirslope=0.9,
-           applyciratio=False):
+           applyciratio=False, minsn=None):
         """ Compute the S/N values.
 
         Parameters
@@ -80,8 +98,11 @@ class twoline(object):
         z : float or np.ndarray
           Redshifts to compute S/N values at
 
-        lir : astropy.units.Quantity
-          Infrared luminosity of source from 8-1000um.
+        norm : astropy.units.Quantity
+          Quantity to use for normalization purposes.  If in power
+          units (e.g., L_sun) then assumed to be L_IR (8-1000um).  
+          If in spectral flux density units (e.g., mJy) then 
+          assumed to be observed continuum flux density at obs_wave.
 
         linewidth : astropy.units.Quantity
           Assumed linewidth in km/s.
@@ -92,6 +113,9 @@ class twoline(object):
 
         applyciratio : bool
            Apply [CI] S/N bonus in computation.
+
+        minsn : float or None
+           Require minimum S/N before recording.
 
         Returns
         -------
@@ -108,6 +132,9 @@ class twoline(object):
         most strongly detected lines covered by tunings.  Then takes the
         lowest S/N across that set of templates (e.g., the pessimistic case)
         for each redshift.
+
+        See the documentation for `line_template.linestrength` for discussion 
+        of the normalization.
         """
 
         # Test if any tunings overlap
@@ -136,7 +163,7 @@ class twoline(object):
             # Get predicted line strengths
             for i in range(self._ntemplates):
                 tpl = self._templates[i]
-                lnname, freq, i0 = tpl.linestrength(lir, curr_z,
+                lnname, freq, i0 = tpl.linestrength(norm, curr_z,
                                                     lirslope=lirslope)
                 if applyciratio:
                     i0 *= tpl.lineratio
@@ -164,6 +191,9 @@ class twoline(object):
                     # if it is -lower- S/N (remember, we are being pessimistic)
                     # Of course, if we have a no-line solution, always take
                     sn0 = curr_sn[0]
+                    if not minsn is None:
+                        if sn0 < minsn:
+                            continue
                     if nlines[zidx] == 0: # New
                         nlines[zidx] = 1
                         snret[zidx, 0] = sn0
@@ -175,6 +205,9 @@ class twoline(object):
                     curr_sn.sort()
                     curr_sn1 = curr_sn[-1]
                     curr_sn2 = curr_sn[-2]
+                    if not minsn is None:
+                        if curr_sn2 < minsn:
+                            continue
                     # If previous is 0 or 1 lines, always replace
                     # Otherwise accept if lower S/N is -worse- than previous
                     if nlines[zidx] < 2 or curr_sn2 < snret[zidx, 1]:

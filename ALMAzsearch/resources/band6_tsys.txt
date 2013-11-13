@@ -1,4 +1,4 @@
-# From the ALMA OT Sens calculator, 4th octile (1.262mm)
+# From the ALMA OT Sens calculator, 4th octile (1.262mm) at zenith
 #Freq Tsys
 211.0 93.386
 213.0 92.653

@@ -1,4 +1,4 @@
-# From the ALMA OT Sens calculator, 6th octile (2.748mm)
+# From the ALMA OT Sens calculator, 6th octile (2.748mm) at DEC=0
 #Freq Tsys
 125.0 102.990
 125.5 101.764
