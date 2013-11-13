@@ -336,7 +336,7 @@ class line_template(object) :
           L_line \propto L_IR^lirslope
         
         obs_wave : astropy.units.Quantity
-          If using flux density based normalization, rest frame
+          If using flux density based normalization, observer frame
           wavelength of observation.
 
         Returns

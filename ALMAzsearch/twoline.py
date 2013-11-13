@@ -85,7 +85,7 @@ class twoline(object):
                 
     def sn(self, tunings, z, norm=u.Quantity(3e13, u.solLum),
            linewidth=u.Quantity(500, u.km / u.s), lirslope=0.9,
-           applyciratio=False, minsn=None):
+           obs_wave=u.Quantity(500, u.um), applyciratio=False, minsn=None):
         """ Compute the S/N values.
 
         Parameters
@@ -111,6 +111,10 @@ class twoline(object):
           Log slope of L_IR, L_line relation, such that 
           L_line \propto L_IR^lirslope
 
+       obs_wave : astropy.units.Quantity
+          If using flux density based normalization, observer frame
+          wavelength of observation.
+
         applyciratio : bool
            Apply [CI] S/N bonus in computation.
 
@@ -121,7 +125,7 @@ class twoline(object):
         -------
         A tuple of (nlines, sn) where nlines is a integer np.ndarray of length
         nz (=number of z values) giving the number of lines covered by
-        the frequency setup (max 2), and sn is a (nz, 2) np.ndarray giving
+        the frequency setup, and sn is a (nz, 2) np.ndarray giving
         the recovered S/N of the two highest S/N lines, such that [:, 1]
         is the lower of the two S/N values.  If only one line is detected,
         [:,1] is 0, but [:,0] is filled.
@@ -164,7 +168,8 @@ class twoline(object):
             for i in range(self._ntemplates):
                 tpl = self._templates[i]
                 lnname, freq, i0 = tpl.linestrength(norm, curr_z,
-                                                    lirslope=lirslope)
+                                                    lirslope=lirslope,
+                                                    obs_wave=obs_wave)
                 if applyciratio:
                     i0 *= tpl.lineratio
 
@@ -184,7 +189,8 @@ class twoline(object):
                         continue
 
                 # Process these out.
-                if len(curr_sn) == 1:
+                nl = len(curr_sn)
+                if nl == 1:
                     # We only found one line.  If we already have a two-line
                     # solution at this redshift (from a different template),
                     # ignore this.  But if we have a one-line, take this
@@ -213,7 +219,7 @@ class twoline(object):
                     if nlines[zidx] < 2 or curr_sn2 < snret[zidx, 1]:
                         snret[zidx, 0] = curr_sn1
                         snret[zidx, 1] = curr_sn2
-                        nlines[zidx] = 2
+                        nlines[zidx] = nl
 
         return (nlines, snret)
                         
