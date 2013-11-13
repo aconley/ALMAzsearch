@@ -22,6 +22,9 @@ class line_template(object) :
       Name of the template.  The currently supported values are
       Arp220, Eyelash, HLSW01, FLS3, GN20, and ID141
 
+    noci : bool
+      Remove [CI] lines from the template
+
     ciratio : float
       S/N bonus factor for [CI] lines -- see twoline documentation.
 
@@ -40,7 +43,7 @@ class line_template(object) :
     """
 
 
-    def __init__(self, name, ciratio=1.0, Td=u.Quantity(55, u.K), 
+    def __init__(self, name, noci=False, ciratio=1.0, Td=u.Quantity(55, u.K), 
                  beta=1.8, lambda0=u.Quantity(200.0, u.um), alpha=4):
         # We store which lines are observed (or predicted) as
         # well as L_IR and the observed line strengths (both
@@ -76,10 +79,6 @@ class line_template(object) :
                                        5.313e-17,  3.803e-17,  2.207e-17,
                                        3.015e-17, 5.73e-17], u.W / u.m**2)
             
-
-            self.lineratio = np.ones_like(self._linei0.value)
-            self.lineratio[-2:] = ciratio
-
         elif name == "Eyelash" or name == "SMMJ2135-0102":
             self._source = "Danielson et al. (2011)"
             self._z = 2.3259
@@ -98,8 +97,6 @@ class line_template(object) :
                                        2.5e-21, 1.15e-21, 
                                        2.43e-21, 4.044e-21], 
                                       u.W / u.m**2)
-            self.lineratio = np.ones_like(self._linei0.value)
-            self.lineratio[-2:] = ciratio
 
         elif name == "HLSW01" or name == "LSW01" or name == "LSW_01" :
             self._source = "K.S. Scott et al. (2011)"
@@ -118,9 +115,6 @@ class line_template(object) :
                                        2.2e-20, 1.7e-20, 1e-20, 
                                        1.3e-20, 2.3e-21, 3.9e-21],
                                       u.W / u.m**2)
-            self.lineratio = np.ones_like(self._linei0.value)
-            self.lineratio[-2:] = ciratio
-
         elif name == "ID141" :
             #Observer frame SED params; note none of the below are
             # corrected for lensing.  The CO (6-5) and (3-2) are from
@@ -142,8 +136,6 @@ class line_template(object) :
                                        5.01307e-20, 3.33625e-20,
                                        8.76716e-21,1.75036e-20], 
                                       u.W / u.m**2) / mu
-            self.lineratio = np.ones_like(self._linei0.value)
-            self.lineratio[-2:] = ciratio
 
         elif name == "GN20" :
             self._source = "Carilli et al. (2010)"
@@ -162,8 +154,6 @@ class line_template(object) :
                                          4.57e-21, 8.37e-21, 8.22e-21,
                                          5.33e-21, 2.13e-21, 2.74e-21,
                                          1.78e-21, 2.97e-21], u.W / u.m**2)
-            self.lineratio = np.ones_like(self._linei0.value)
-            self.lineratio[-2:] = ciratio
         elif name == "FLS3" or name == "HFLS3" or name == "FLS_3" :
             mu = 1.25 # Mag limit
             self._source = "Riechers et al. (2013)"
@@ -183,8 +173,6 @@ class line_template(object) :
                                          2.05e-20, 2.73e-21, 4.85e-21,
                                          1.26e-20, 1.06e-21, 1.77e-21],
                                         u.W / u.m**2) / mu
-            self.lineratio = np.ones_like(self._linei0.value)
-            self.lineratio[-2:] = ciratio
         elif name == "SPTComposite":
             self._source = "Spilker et al. (2013)"
             self._z = 3.0
@@ -203,8 +191,6 @@ class line_template(object) :
                                        2.66e-20, 5.79e-20, 6.83e-20,
                                        5.10e-20, 4.26e-20, 8.57e-21,
                                        1.43e-20], u.W / u.m**2)
-            self.lineratio = np.ones_like(self._linei0.value)
-            self.lineratio[-2:] = ciratio
         elif name == "J16359+6612":
             # This is just the B image
             # This object has -extremely- poorly constrainted L_IR, so
@@ -223,11 +209,18 @@ class line_template(object) :
             self._linei0 = u.Quantity([9.18e-21, 1.75e-20, 2.79e-20,
                                        2.62e-20, 1.91e-20, 7.93e-21,
                                        1.69e-20], u.W / u.m**2) / mu
-            self.lineratio = np.ones_like(self._linei0.value)
-            self.lineratio[-2:] = ciratio
             
         else:
             raise KeyError("Unknown source %s" % name)
+
+        # The last two lines for all templates are [CI]
+        self.lineratio = np.ones_like(self._linei0.value)
+        if noci:
+            self._linename = self._linename[:-2]
+            self._linei0 = self._linei0[:-2]
+            self.lineratio = self.lineratio[:-2]
+        else:            
+            self.lineratio[-2:] = ciratio
 
         #Rest frame GHz
         self._linefreq = u.Quantity([linefreq[nm] for nm in self._linename],

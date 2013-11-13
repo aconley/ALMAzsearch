@@ -19,6 +19,9 @@ class twoline(object):
     template_names : str or [str]
       Names of line-strength templates to use in the calculation
 
+    noci : bool
+      Remove [CI] lines from the templates
+
     ciratio : float
       Bonus multiplier to returned S/N of [CI] lines.  This is to
       account for the fact that they occur in a fixed relation
@@ -39,18 +42,21 @@ class twoline(object):
       Wein-side power-law slope for flux normalization.
     """
 
-    def __init__(self, template_names, ciratio=1.0, Td=u.Quantity(55, u.K), 
-                 beta=1.8, lambda0=u.Quantity(200.0, u.um), alpha=4):
+    def __init__(self, template_names, noci=False, ciratio=1.0, 
+                 Td=u.Quantity(55, u.K), beta=1.8, 
+                 lambda0=u.Quantity(200.0, u.um), alpha=4):
         if isinstance(template_names, str):
             # Just one
             self._ntemplates = 1
-            self._templates = [line_template(template_names, ciratio=ciratio,
+            self._templates = [line_template(template_names, noci=noci,
+                                             ciratio=ciratio,
                                              Td=Td, beta=beta, lambda0=lambda0,
                                              alpha=alpha)]
             self._template_names = [template_names]
         else:
             self._ntemplates = len(template_names)
-            self._templates = [line_template(nm, ciratio=ciratio, Td=Td, 
+            self._templates = [line_template(nm, noci=noci,
+                                             ciratio=ciratio, Td=Td, 
                                              beta=beta, lambda0=lambda0,
                                              alpha=alpha) for
                                nm in template_names]
